@@ -1,12 +1,13 @@
 import re
 import numpy as np
+from Node import Node
 
 # Setup --------------------------------------------------------
 
 # query = "SELECT LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = PNO " \
 #         "AND EMPLOYEE.ESSN = SSN AND WORKS_ON.BDATE > 1957-12-31"
-query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m"
-# query = "select cliente.nome,cliente.idade,cartao.tipo_c from (select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
+# query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m"
+query = "select cliente.nome,cliente.idade,cartao.tipo_c from (select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
 
 query = query.lower()
 
@@ -50,6 +51,23 @@ def split_operators(op_comp, op_logic, query: str):
                 conditions.append(tuple(infos))
 
     return op_logicos_positions, conditions
+
+
+def generate_tree(key, relations):
+    a = relations[key]
+
+    infos = relations[a[0]]
+    tabelas = infos["tabelas"]
+    columns_info = infos["columns_info"]
+    select_infos = infos["select_infos"]
+
+    tree = Node(str(select_infos))
+
+    for i, col in enumerate(columns_info):
+        if i == 0:
+            tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
+        else:
+            tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
 
 
 # Codigo -------------------------------------------------------
@@ -176,4 +194,29 @@ for query in sub_queries:
             relations[query]["columns_info"][tabela_info].append(column)
 
 print(relations)
+
+a = list(sub_queries.keys())
+a.sort(reverse=True)
+
+infos = relations[a[0]]
+tabelas = infos["tabelas"]
+columns_info = infos["columns_info"]
+select_infos = infos["select_infos"]
+
+
+
+tree = Node(str(select_infos))
+
+for i, col in enumerate(tabelas):
+    if i == 0:
+        tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
+    else:
+        tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
+
+print(infos)
+
+# for t in tabelas:
+#     Node()
+
+
 # Pegando tabelas e colunas a partir do where
