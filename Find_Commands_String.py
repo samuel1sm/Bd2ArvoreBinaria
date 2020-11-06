@@ -4,10 +4,11 @@ from Node import Node
 
 # Setup --------------------------------------------------------
 
-# query = "SELECT LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = PNO " \
+# query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = PNO " \
 #         "AND EMPLOYEE.ESSN = SSN AND WORKS_ON.BDATE > 1957-12-31"
 # query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m"
-query = "select cliente.nome,cliente.idade,cartao.tipo_c from (select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
+query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
+        "(select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
 
 query = query.lower()
 
@@ -34,18 +35,13 @@ def split_operators(op_comp, op_logic, query: str):
     for operador in op_comp:
         for i in comparacoes:
             if operador in i:
-                new_string = ''
-                in_quotes = False
-
-                for char in i:
-                    if char == '‘' or char == '’':
-                        in_quotes = not in_quotes
-
-                    if char != ' ' or in_quotes:
-                        new_string += char
-                    # TODO / Os espaços foram removidos nesse for, mas não para o que está dentro de aspas
-
-                i = new_string
+                # for char in i:
+                #     if char == '‘' or char == '’':
+                #         in_quotes = not in_quotes
+                #
+                #     if char != ' ' or in_quotes:
+                #         new_string += char
+                # TODO / Os espaços foram removidos nesse for, mas não para o que está dentro de aspasg
                 infos = i.split(operador)
                 infos.append(operador)
                 conditions.append(tuple(infos))
@@ -104,13 +100,12 @@ for i, position in enumerate(select_positions):
     result["query"] = sub_query
     for i, current_data in enumerate(sub_positions):
         if i != len(sub_positions) - 1:
-            # TODO / Os espaços são removidos com o .strip() em current_data[0]. Ver com samuel o index_start abaixo.
             # index_start = current_data[1] if sub_query[current_data[1]] != ' ' else (current_data[1] + 1)
             next_data = sub_positions[i + 1]
-            result[current_data[0].strip()] = sub_query[current_data[1]: next_data[1]]
+            result[current_data[0]] = sub_query[current_data[1]: next_data[1]]
         else:
             # index_start = current_data[1] if sub_query[current_data[1]] != ' ' else (current_data[1] + 1)
-            result[current_data[0].strip()] = sub_query[current_data[1]:]
+            result[current_data[0]] = sub_query[current_data[1]:]
 
     # Dicionário de dicionários. Result é tanto a query toda quanto ela "dividida"
     sub_queries[key] = result
@@ -127,13 +122,13 @@ for key in sub_queries:
 operators_dict = {}
 for key in sub_queries:
     operators_dict[key] = {}
-    if "where" in sub_queries[key]:
-        a = sub_queries[key]["where"].replace("where ", "")
-        operators_dict[key]["where"] = split_operators(op_comparacao, op_logicos, a)
+    if " where " in sub_queries[key]:
+        a = sub_queries[key][" where "].replace("where ", "")
+        operators_dict[key][" where "] = split_operators(op_comparacao, op_logicos, a)
 
-    if "on" in sub_queries[key]:
-        a = sub_queries[key]["on"].replace(" on ", "")
-        operators_dict[key]["on"] = split_operators(op_comparacao, op_logicos, a)
+    if " on " in sub_queries[key]:
+        a = sub_queries[key][" on "].replace(" on ", "")
+        operators_dict[key][" on "] = split_operators(op_comparacao, op_logicos, a)
 
 print(sub_queries, end="\n\n")
 print(operators_dict, end="\n\n")
@@ -145,9 +140,10 @@ for query in sub_queries:
     relations[query]["tabelas"] = []
     relations[query]["columns_info"] = {}
     relations[query]["select_infos"] = {}
+    relations[query]["comparations"] = []
 
-    if "select" in sub_queries[query]:
-        aux_array = sub_queries[query]["select"].replace("select ", '').replace(" ", '').split(",")
+    if "select " in sub_queries[query]:
+        aux_array = sub_queries[query]["select "].replace("select ", '').replace(" ", '').split(",")
 
         for tab in aux_array:
             if tab != "*":
@@ -158,40 +154,77 @@ for query in sub_queries:
             else:
                 relations[query]["select_infos"]["all"] = [tab]
 
-    if "from" in sub_queries[query]:
-        aux_array = sub_queries[query]["from"].replace(" from ", '').replace(" ", '').split(",")
+    if " from " in sub_queries[query]:
+        aux_array = sub_queries[query][" from "].replace(" from ", '').replace(" ", '').split(",")
 
         for tab in aux_array:
             if tab not in relations[query]["tabelas"]:
                 relations[query]["tabelas"].append(tab)
 
-    if "join" in sub_queries[query]:
-        aux_array = sub_queries[query]["join"].replace(" join ", '').replace(" ", '').split(",")
+    if " join " in sub_queries[query]:
+        aux_array = sub_queries[query][" join "].replace(" join ", '').replace(" ", '').split(",")
 
         for tab in aux_array:
             if tab not in relations[query]["tabelas"]:
                 relations[query]["tabelas"].append(tab)
 
-        a = operators_dict[query]["on"][1]
+        a = operators_dict[query][" on "][1]
 
-        for tabela_info, value, _ in a:
-            tabela_info, column = tabela_info.split(".")
-            if tabela_info not in relations[query]["columns_info"]:
-                relations[query]["columns_info"][tabela_info] = []
+        for operation in a:
+            if "." in operation[0]:
+                tabela_info_l, column_l = operation[0].split(".")
+            else:
+                column_l = None
+                tabela_info_l = operation[0]
 
-            relations[query]["columns_info"][tabela_info].append(column)
+            if "." in operation[1]:
+                tabela_info_r, column_r = operation[1].split(".")
+            else:
+                column_r = None
+                tabela_info_r = operation[1]
+
+            if column_r and tabela_info_r not in relations[query]["columns_info"]:
+                relations[query]["columns_info"][tabela_info_r] = []
+
+            if column_r and tabela_info_l not in relations[query]["columns_info"]:
+                relations[query]["columns_info"][tabela_info_l] = []
+
+            relations[query]["comparations"].append({(tabela_info_l, column_l, operation[2], tabela_info_r, column_r)})
+            relations[query]["columns_info"][tabela_info_r].append(column_r)
+            if column_r:
+                relations[query]["columns_info"][tabela_info_l].append(column_l)
 
         # sub_queries[query]["on"].replace(" on ", '').replace(" ", '').split(",")
 
-    if "where" in sub_queries[query]:
+    if " where " in sub_queries[query]:
 
-        a = operators_dict[query]["where"][1]
-        for tabela_info, value, _ in a:
-            tabela_info, column = tabela_info.split(".")
-            if tabela_info not in relations[query]["columns_info"]:
-                relations[query]["columns_info"][tabela_info] = []
+        a = operators_dict[query][" where "][1]
+        for operation in a:
+            if "." in operation[0]:
+                tabela_info_l, column_l = operation[0].split(".")
+            else:
+                column_l = None
+                tabela_info_l = operation[0]
 
-            relations[query]["columns_info"][tabela_info].append(column)
+            if "." in operation[1]:
+                tabela_info_r, column_r = operation[1].split(".")
+            else:
+                column_r = None
+                tabela_info_r = operation[1]
+
+            tabela_info_l= tabela_info_l.strip()
+            tabela_info_r= tabela_info_r.strip()
+            if column_r and tabela_info_r not in relations[query]["columns_info"]:
+                relations[query]["columns_info"][tabela_info_r] = []
+
+            if column_l and tabela_info_l not in relations[query]["columns_info"]:
+                relations[query]["columns_info"][tabela_info_l] = []
+
+            relations[query]["comparations"].append({(tabela_info_l, column_l, operation[2], tabela_info_r, column_r)})
+            relations[query]["columns_info"][tabela_info_l].append(column_l)
+
+            if column_r:
+                relations[query]["columns_info"][tabela_info_r].append(column_r)
 
 print(relations)
 
@@ -203,17 +236,15 @@ tabelas = infos["tabelas"]
 columns_info = infos["columns_info"]
 select_infos = infos["select_infos"]
 
-
-
 tree = Node(str(select_infos))
 
-for i, col in enumerate(tabelas):
-    if i == 0:
-        tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
-    else:
-        tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
-
-print(infos)
+# for i, col in enumerate(tabelas):
+#     if i == 0:
+#         tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
+#     else:
+#         tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
+#
+# print(infos)
 
 # for t in tabelas:
 #     Node()
