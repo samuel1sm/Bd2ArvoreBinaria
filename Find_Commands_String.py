@@ -2,16 +2,19 @@ import re
 import numpy as np
 from Node import Node
 
-# Setup --------------------------------------------------------
+
 
 # query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = PNO " \
 #         "AND EMPLOYEE.ESSN = SSN AND WORKS_ON.BDATE > 1957-12-31"
 # query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m"
+# query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
+#         "(select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
 query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
-        "(select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
+        "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
+        "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente " \
+        "on batata.usuario = cliente.usuario)"
 
 query = query.lower()
-
 comandos = ["select ", " from ", " where ", " join ", " on ", "order by"]
 op_comparacao = ["=", ">", "<", "<=", ">=", "<>"]
 op_logicos = [" and ", " or ", " in ", " not in ", " like "]
@@ -53,7 +56,6 @@ def generate_tree(key, relations):
     a = relations[key]
 
     infos = relations[a[0]]
-    tabelas = infos["tabelas"]
     columns_info = infos["columns_info"]
     select_infos = infos["select_infos"]
 
@@ -64,6 +66,19 @@ def generate_tree(key, relations):
             tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
         else:
             tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
+
+
+def extract_tables(key, relations, search, column):
+    for table in relations[key]['tabelas']:
+        if "!" in table:
+            return extract_tables(table, relations, search, column)
+        elif table in search:
+            if table in relations[key]['tabelas']:
+                return table, key
+            else:
+                continue
+        else:
+            continue
 
 
 # Codigo -------------------------------------------------------
@@ -135,6 +150,7 @@ print(operators_dict, end="\n\n")
 
 relations = {}
 # Procurando todas as tabelas distintas e as colunas de cada tabela e as colocando no dicionário sub_queries
+tables = {}
 for query in sub_queries:
     relations[query] = {}
     relations[query]["tabelas"] = []
@@ -142,16 +158,25 @@ for query in sub_queries:
     relations[query]["select_infos"] = {}
     relations[query]["comparations"] = []
 
+    tables[query] = {}
+
     if "select " in sub_queries[query]:
         aux_array = sub_queries[query]["select "].replace("select ", '').replace(" ", '').split(",")
 
         for tab in aux_array:
             if tab != "*":
+                tables[query][tab] = [tab]
                 tabela_info, column = tab.split(".")
+
+                # if tabela_info not in relations[query]["tabelas"]:
+                #     relations[query]["tabelas"].append(tabela_info)
+
                 if tabela_info not in relations[query]["select_infos"]:
                     relations[query]["select_infos"][tabela_info] = []
+
                 relations[query]["select_infos"][tabela_info].append(column)
             else:
+                tables[query][tab] = [tab]
                 relations[query]["select_infos"]["all"] = [tab]
 
     if " from " in sub_queries[query]:
@@ -212,8 +237,9 @@ for query in sub_queries:
                 column_r = None
                 tabela_info_r = operation[1]
 
-            tabela_info_l= tabela_info_l.strip()
-            tabela_info_r= tabela_info_r.strip()
+            tabela_info_l = tabela_info_l.strip()
+            tabela_info_r = tabela_info_r.strip()
+
             if column_r and tabela_info_r not in relations[query]["columns_info"]:
                 relations[query]["columns_info"][tabela_info_r] = []
 
@@ -227,6 +253,10 @@ for query in sub_queries:
                 relations[query]["columns_info"][tabela_info_r].append(column_r)
 
 print(relations)
+
+
+
+print(extract_tables("!0!", relations, 'cliente', 'usuario'))
 
 a = list(sub_queries.keys())
 a.sort(reverse=True)
