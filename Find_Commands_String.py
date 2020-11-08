@@ -2,20 +2,27 @@ import re
 import numpy as np
 from Node import Node
 
-
+# Setup --------------------------------------------------------
 
 # query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = PNO " \
 #         "AND EMPLOYEE.ESSN = SSN AND WORKS_ON.BDATE > 1957-12-31"
-# query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m"
-# query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
-#         "(select * from cliente join cartao on cartao.usuario = cliente.usuario),batata"
+# query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m and pessoa.idade > 30"
+
+# query = "select cliente.nome, cliente.idade, cartao.tipo_c from " \
+#         "batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)"
+
 query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
         "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
-        "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente " \
-        "on batata.usuario = cliente.usuario)"
+        "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
+
+# query = "select * from cliente join cartao on cartao.usuario = cliente.usuario"
+
+# query = "select pessoa.nome, pessoa.idade from pessoa join funcionario on pessoa.nome = funcionario.nome" \
+#         " where pessoa.sexo = m and pessoa.idade > 30 order by pessoa.idade"
 
 query = query.lower()
-comandos = ["select ", " from ", " where ", " join ", " on ", "order by"]
+
+comandos = ["select ", " from ", " where ", " join ", " on ", " order by "]
 op_comparacao = ["=", ">", "<", "<=", ">=", "<>"]
 op_logicos = [" and ", " or ", " in ", " not in ", " like "]
 
@@ -52,33 +59,182 @@ def split_operators(op_comp, op_logic, query: str):
     return op_logicos_positions, conditions
 
 
-def generate_tree(key, relations):
-    a = relations[key]
+def generate_tree(key):
+    # Guardando todos os nós
+    all_nodes = []
 
-    infos = relations[a[0]]
-    columns_info = infos["columns_info"]
-    select_infos = infos["select_infos"]
+    # Pegando todas as tabelas do from e separando a primeira das outras
+    from_tables = sub_queries[key][" from "].replace(" from ", "").split(",")
 
-    tree = Node(str(select_infos))
+    first = from_tables[0]
+    from_tables.remove(first)
+    other_tables = from_tables
 
-    for i, col in enumerate(columns_info):
-        if i == 0:
-            tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
+    # Criando o primeiro nó e adicionando a tabela dele na lista de tabelas checadas
+    if "!" in first:
+        last_node_checked = generate_tree(first)
+        last_node_checked.data = f"({last_node_checked.data} ({first}))"
+
+    else:
+        last_node_checked = Node(first)
+
+    all_nodes.append(last_node_checked)
+    checked_tables = [first]
+
+    # Pegando todos os wheres e joins e os colocando em vetores
+    wheres = []
+    joins = []
+
+    for comparison in relations[key]["comparisons"]:
+        if "where" in str(list(comparison)[-1]).strip():
+            wheres.append(list(comparison))
+        elif "join" in str(list(comparison)[-1]).strip():
+            joins.append(list(comparison))
+
+    # Adicionando as outras tabelas do from como joins
+    for new_join in other_tables:
+        joins.append((first, None, None, new_join, None, "join"))
+
+    # print(wheres)
+    # print(joins)
+
+    # Primeira checagem de wheres
+    wheres_to_remove = []
+    for where in wheres:
+        if can_use_where(where, checked_tables):
+            wheres_to_remove.append(where)
+            newnode = Node(where)  # TODO BUILD OPERATION STRING
+            all_nodes.append(newnode)
+            newnode.add_child(last_node_checked)
+            last_node_checked = newnode
+
+    for where in wheres_to_remove:
+        wheres.remove(where)
+
+    # Checagem de join e criação de nós filhas daquele join
+    for join in joins:
+        # Encontrando a tabela "diferente" que está no join
+        join_table_name = join[3] if (join[0] in first) else join[0]
+        checked_tables.append(join_table_name)
+
+        if "!" in join_table_name:
+            last_child_checked = generate_tree(join_table_name)
+            last_child_checked.data = f"({last_child_checked.data} ({join_table_name}))"
         else:
-            tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
+            last_child_checked = Node(join_table_name)
 
+        all_nodes.append(last_child_checked)
 
-def extract_tables(key, relations, search, column):
-    for table in relations[key]['tabelas']:
-        if "!" in table:
-            return extract_tables(table, relations, search, column)
-        elif table in search:
-            if table in relations[key]['tabelas']:
-                return table, key
-            else:
-                continue
+        # Descendo a partir do join
+        wheres_to_remove = []
+        for where in wheres:
+            if can_use_where(where, join_table_name):
+                wheres_to_remove.append(where)
+                newnode = Node(where)  # TODO BUILD OPERATION STRING
+                all_nodes.append(newnode)
+                newnode.add_child(last_child_checked)
+                last_child_checked = newnode
+
+        for where in wheres_to_remove:
+            wheres.remove(where)
+
+        # Juntando o node anterior com a child
+        if type(last_node_checked.data) == tuple or type(last_node_checked.data) == list:
+            join_child_1 = last_node_checked.data[0]
         else:
-            continue
+            join_child_1 = str(last_node_checked.data).strip().replace(",", "")
+
+        if type(last_child_checked.data) == tuple:
+            join_child_2 = last_child_checked.data[0]
+        else:
+            join_child_2 = str(last_child_checked.data).strip().replace(",", "")
+
+        newnode = Node((join_child_1, None, None, join_child_2, None, "join"))
+        all_nodes.append(newnode)
+        newnode.add_children(last_node_checked, last_child_checked)
+        last_node_checked = newnode
+
+        # Após o join, vendo se tem wheres restantes possíveis antes do próximo join
+        wheres_to_remove = []
+        for where in wheres:
+            if can_use_where(where, checked_tables):
+                wheres_to_remove.append(where)
+                newnode = Node(where)  # TODO BUILD OPERATION STRING
+                all_nodes.append(newnode)
+                newnode.add_child(last_node_checked)
+                last_node_checked = newnode
+
+        for where in wheres_to_remove:
+            wheres.remove(where)
+
+    # Adicionando os order by, se existirem
+    if " order by " in sub_queries[key]:
+        order_bys = sub_queries[key][" order by "].replace(" order by ", "").split()
+        order_bys = [i for i in order_bys if i]
+
+        for order in order_bys:
+            newnode = Node("order by " + order)
+            all_nodes.append(newnode)
+            newnode.add_child(last_node_checked)
+            last_node_checked = newnode
+
+    # Adicionando o select
+    newnode = Node(str(sub_queries[key]["select "]))
+    all_nodes.append(newnode)
+    newnode.add_child(last_node_checked)
+    last_node_checked = newnode
+
+
+    return last_node_checked
+
+
+def traverse(rootnode):
+    thislevel = [rootnode]
+
+    while thislevel:
+        nextlevel = list()
+
+        for n in thislevel:
+            if type(n.data) == tuple or type(n.data) == list:
+                n.data = build_operation_string(n.data)
+
+            print(n.data)
+
+            if n.left_node:
+                nextlevel.append(n.left_node)
+            if n.right_node:
+                nextlevel.append(n.right_node)
+
+        print()
+        thislevel = nextlevel
+
+
+def can_use_where(where: list, tables: []):
+    if where[0] in tables:
+        if (not where[4]) or (where[4] in tables):
+            return True
+        else:
+            return False
+    else:
+        return False
+
+
+def build_operation_string(oper: list):
+    operation_string = ""
+
+    if oper[5] == "where":
+        operation_string += "where " + oper[0] + "." + oper[1] + " " + oper[2] + " " + oper[3]
+
+        if oper[4]:
+            operation_string += "." + oper[4]
+
+    elif oper[5] == "join":
+        operation_string += oper[0] + " join " + oper[3]
+
+        if oper[1] and oper[2] and oper[4]:
+            operation_string += " on " + oper[0] + "." + oper[1] + " " + oper[2] + oper[3] + "." + oper[4]
+
+    return operation_string.replace(",", "")
 
 
 # Codigo -------------------------------------------------------
@@ -88,7 +244,7 @@ select_positions.reverse()
 
 sub_queries = {}
 
-print(query)
+# print(query, end="\n\n")
 
 # Para cada select e subselect
 for i, position in enumerate(select_positions):
@@ -125,15 +281,15 @@ for i, position in enumerate(select_positions):
     # Dicionário de dicionários. Result é tanto a query toda quanto ela "dividida"
     sub_queries[key] = result
 
-print()
 # Printando cada select e subselect, junto com sua chave
-for key in sub_queries:
-    print(key)
-    i = sub_queries[key]
-    for key2 in sub_queries[key]:
-        print(f"{key2}: {i[key2]}")
+# for key in sub_queries:
+#     print(key)
+#     i = sub_queries[key]
+#     for key2 in sub_queries[key]:
+#         print(f"{key2}: {i[key2]}")
+#
+# print()
 
-# Esqueci o que isso faz, perguntar ao Samuel. Mas nessa query não faz nada pq não tem where
 operators_dict = {}
 for key in sub_queries:
     operators_dict[key] = {}
@@ -145,38 +301,29 @@ for key in sub_queries:
         a = sub_queries[key][" on "].replace(" on ", "")
         operators_dict[key][" on "] = split_operators(op_comparacao, op_logicos, a)
 
-print(sub_queries, end="\n\n")
-print(operators_dict, end="\n\n")
+# print(sub_queries, end="\n\n")
+# print(operators_dict, end="\n\n")
 
 relations = {}
+
 # Procurando todas as tabelas distintas e as colunas de cada tabela e as colocando no dicionário sub_queries
-tables = {}
 for query in sub_queries:
     relations[query] = {}
     relations[query]["tabelas"] = []
     relations[query]["columns_info"] = {}
     relations[query]["select_infos"] = {}
-    relations[query]["comparations"] = []
-
-    tables[query] = {}
+    relations[query]["comparisons"] = []
 
     if "select " in sub_queries[query]:
         aux_array = sub_queries[query]["select "].replace("select ", '').replace(" ", '').split(",")
 
         for tab in aux_array:
             if tab != "*":
-                tables[query][tab] = [tab]
                 tabela_info, column = tab.split(".")
-
-                # if tabela_info not in relations[query]["tabelas"]:
-                #     relations[query]["tabelas"].append(tabela_info)
-
                 if tabela_info not in relations[query]["select_infos"]:
                     relations[query]["select_infos"][tabela_info] = []
-
                 relations[query]["select_infos"][tabela_info].append(column)
             else:
-                tables[query][tab] = [tab]
                 relations[query]["select_infos"]["all"] = [tab]
 
     if " from " in sub_queries[query]:
@@ -214,7 +361,8 @@ for query in sub_queries:
             if column_r and tabela_info_l not in relations[query]["columns_info"]:
                 relations[query]["columns_info"][tabela_info_l] = []
 
-            relations[query]["comparations"].append({(tabela_info_l, column_l, operation[2], tabela_info_r, column_r)})
+            relations[query]["comparisons"].append(
+                (tabela_info_l, column_l, operation[2], tabela_info_r, column_r, "join"))
             relations[query]["columns_info"][tabela_info_r].append(column_r)
             if column_r:
                 relations[query]["columns_info"][tabela_info_l].append(column_l)
@@ -222,7 +370,6 @@ for query in sub_queries:
         # sub_queries[query]["on"].replace(" on ", '').replace(" ", '').split(",")
 
     if " where " in sub_queries[query]:
-
         a = operators_dict[query][" where "][1]
         for operation in a:
             if "." in operation[0]:
@@ -246,27 +393,40 @@ for query in sub_queries:
             if column_l and tabela_info_l not in relations[query]["columns_info"]:
                 relations[query]["columns_info"][tabela_info_l] = []
 
-            relations[query]["comparations"].append({(tabela_info_l, column_l, operation[2], tabela_info_r, column_r)})
+            relations[query]["comparisons"].append(
+                (tabela_info_l, column_l, operation[2], tabela_info_r, column_r, "where"))
             relations[query]["columns_info"][tabela_info_l].append(column_l)
 
             if column_r:
                 relations[query]["columns_info"][tabela_info_r].append(column_r)
 
-print(relations)
+# TODO ------------------------------------------------------
 
+# print(relations)
 
+# print(len(sub_queries))
 
-print(extract_tables("!0!", relations, 'cliente', 'usuario'))
-
-a = list(sub_queries.keys())
-a.sort(reverse=True)
-
-infos = relations[a[0]]
-tabelas = infos["tabelas"]
-columns_info = infos["columns_info"]
-select_infos = infos["select_infos"]
-
-tree = Node(str(select_infos))
+a = generate_tree(list(sub_queries.keys())[-1])
+traverse(a)
+# print(relations)
+# print("!!!!!!!!!!!!")
+# print(sub_queries)
+#
+# a = list(sub_queries.keys())
+# a.sort(reverse=True)
+#
+# print(a)
+#
+# infos = relations[a[0]]
+# tabelas = infos["tabelas"]
+# columns_info = infos["columns_info"]
+# select_infos = infos["select_infos"]
+#
+# print(tabelas)
+# print(columns_info)
+# print(select_infos)
+#
+# print()
 
 # for i, col in enumerate(tabelas):
 #     if i == 0:
