@@ -138,12 +138,12 @@ def generate_tree(key, sub_queries, relations):
         if type(last_node_checked.data) == tuple or type(last_node_checked.data) == list:
             join_child_1 = last_node_checked.data[0]
         else:
-            join_child_1 = str(last_node_checked.data).strip().replace(",", "")
+            join_child_1 = str(last_node_checked.data).strip()
 
         if type(last_child_checked.data) == tuple or type(last_child_checked.data) == list:
             join_child_2 = last_child_checked.data[0]
         else:
-            join_child_2 = str(last_child_checked.data).strip().replace(",", "")
+            join_child_2 = str(last_child_checked.data).strip()
 
         newnode = Node((join_child_1, None, None, join_child_2, None, "join"))
         all_nodes.append(newnode)
@@ -186,8 +186,9 @@ def generate_tree(key, sub_queries, relations):
 def create_tree_dictionary(root):
     tree = {}
     level = 0
+    id = 1
 
-    thislevel = [(root, "X")]
+    thislevel = [(root, " [#" + str(1) + "/")]
 
     while thislevel:
         nextlevel = list()
@@ -197,13 +198,20 @@ def create_tree_dictionary(root):
             if type(n[0].data) == tuple or type(n[0].data) == list:
                 n[0].data = build_operation_string(n[0].data)
 
-            # print(n.data)
-            level_data_array.append(n[0].data + " (" + n[1] + ")")
+            node_string_build = n[0].data + n[1]
 
             if n[0].left_node:
-                nextlevel.append((n[0].left_node, "L"))
+                id += 1
+                nextlevel.append((n[0].left_node, " [#" + str(id) + "/"))
+                node_string_build += str(id)
             if n[0].right_node:
-                nextlevel.append((n[0].right_node, "R"))
+                id += 1
+                nextlevel.append((n[0].right_node, " [#" + str(id) + "/"))
+                node_string_build += "/" + str(id)
+
+            node_string_build += "]"
+            level_data_array.append(node_string_build)
+
 
         tree[str(level)] = level_data_array
 
