@@ -4,15 +4,15 @@ from Node import Node
 
 # Setup --------------------------------------------------------
 
-query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius AND project.PNUMBER = WORKS_ON.PNO " \
-        "AND EMPLOYEE.ESSN = WORKS_ON.SSN AND WORKS_ON.BDATE > 1957-12-31"
+# query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius AND project.PNUMBER = WORKS_ON.PNO " \
+#         "AND EMPLOYEE.ESSN = WORKS_ON.SSN AND WORKS_ON.BDATE > 1957-12-31"
 # query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m and pessoa.idade > 30"
 # query = "select cliente.nome, cliente.idade, cartao.tipo_c from " \
 #         "batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)"
 
-# query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
-#         "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
-#         "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
+query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
+        "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
+        "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
 
 # query = "select * from cliente join cartao on cartao.usuario = cliente.usuario"
 
@@ -184,29 +184,39 @@ def generate_tree(key):
     newnode.add_child(last_node_checked)
     last_node_checked = newnode
 
-
     return last_node_checked
 
 
-def traverse(rootnode):
-    thislevel = [rootnode]
+def create_tree_dictionary(root):
+    tree = {}
+    level = 0
+
+    thislevel = [(root, "X")]
 
     while thislevel:
         nextlevel = list()
+        level_data_array = []
 
         for n in thislevel:
-            if type(n.data) == tuple or type(n.data) == list:
-                n.data = build_operation_string(n.data)
+            if type(n[0].data) == tuple or type(n[0].data) == list:
+                n[0].data = build_operation_string(n[0].data)
 
-            print(n.data)
+            #print(n.data)
+            level_data_array.append(n[0].data + " (" + n[1] + ")")
 
-            if n.left_node:
-                nextlevel.append(n.left_node)
-            if n.right_node:
-                nextlevel.append(n.right_node)
+            if n[0].left_node:
+                nextlevel.append((n[0].left_node, "L"))
+            if n[0].right_node:
+                nextlevel.append((n[0].right_node, "R"))
 
-        print()
+        tree[str(level)] = level_data_array
+
+        #print()
         thislevel = nextlevel
+        level += 1
+
+    print(tree)
+    return tree
 
 
 def can_use_where(where: list, tables: []):
@@ -234,7 +244,7 @@ def build_operation_string(oper: list):
         if oper[1] and oper[2] and oper[4]:
             operation_string += " on " + oper[0] + "." + oper[1] + " " + oper[2] + oper[3] + "." + oper[4]
 
-    return operation_string.replace(",", "")
+    return operation_string
 
 
 # Codigo -------------------------------------------------------
@@ -407,7 +417,7 @@ for query in sub_queries:
 # print(len(sub_queries))
 
 a = generate_tree(list(sub_queries.keys())[-1])
-traverse(a)
+create_tree_dictionary(a)
 # print(relations)
 # print("!!!!!!!!!!!!")
 # print(sub_queries)
