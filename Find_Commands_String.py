@@ -10,22 +10,18 @@ from Node import Node
 # query = "select cliente.nome, cliente.idade, cartao.tipo_c from " \
 #         "batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)"
 
-query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
-        "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
-        "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
+
 
 # query = "select * from cliente join cartao on cartao.usuario = cliente.usuario"
 
 # query = "select pessoa.nome, pessoa.idade from pessoa join funcionario on pessoa.nome = funcionario.nome" \
 #         " where pessoa.sexo = m and pessoa.idade > 30 order by pessoa.idade"
 
-query = query.lower()
-a_q = query
+
 
 comandos = ["select ", " from ", " where ", " join ", " on ", " order by "]
 op_comparacao = ["=", ">", "<", "<=", ">=", "<>"]
 op_logicos = [" and ", " or ", " in ", " not in ", " like "]
-
 
 # Metodos ------------------------------------------------------
 
@@ -59,12 +55,12 @@ def split_operators(op_comp, op_logic, query: str):
     return op_logicos_positions, conditions
 
 
-def generate_tree(key):
+def generate_tree(key, sub_queries, relations):
     # Guardando todos os nós
     all_nodes = []
 
     # Pegando todas as tabelas do from e separando a primeira das outras
-    from_tables = sub_queries[key][" from "].replace(" from ", "").replace(" ","").split(",")
+    from_tables = sub_queries[key][" from "].replace(" from ", "").replace(" ", "").split(",")
 
     first = from_tables[0]
     from_tables.remove(first)
@@ -72,7 +68,7 @@ def generate_tree(key):
 
     # Criando o primeiro nó e adicionando a tabela dele na lista de tabelas checadas
     if "!" in first:
-        last_node_checked = generate_tree(first)
+        last_node_checked = generate_tree(first, sub_queries, relations)
         last_node_checked.data = f"({last_node_checked.data} ({first}))"
 
     else:
@@ -118,7 +114,7 @@ def generate_tree(key):
         checked_tables.append(join_table_name)
 
         if "!" in join_table_name:
-            last_child_checked = generate_tree(join_table_name)
+            last_child_checked = generate_tree(join_table_name, sub_queries, relations)
             last_child_checked.data = f"({last_child_checked.data} ({join_table_name}))"
         else:
             last_child_checked = Node(join_table_name)
@@ -201,7 +197,7 @@ def create_tree_dictionary(root):
             if type(n[0].data) == tuple or type(n[0].data) == list:
                 n[0].data = build_operation_string(n[0].data)
 
-            #print(n.data)
+            # print(n.data)
             level_data_array.append(n[0].data + " (" + n[1] + ")")
 
             if n[0].left_node:
@@ -211,7 +207,7 @@ def create_tree_dictionary(root):
 
         tree[str(level)] = level_data_array
 
-        #print()
+        # print()
         thislevel = nextlevel
         level += 1
 
@@ -249,175 +245,171 @@ def build_operation_string(oper: list):
 
 # Codigo -------------------------------------------------------
 
-select_positions = [m.start() for m in re.finditer("select", query)]
-select_positions.reverse()
+def verify_query(query):
+    query = query.lower()
+    select_positions = [m.start() for m in re.finditer("select", query)]
+    select_positions.reverse()
 
-sub_queries = {}
+    sub_queries = {}
 
-# print(query, end="\n\n")
+    # print(query, end="\n\n")
 
-# Para cada select e subselect
-for i, position in enumerate(select_positions):
+    # Para cada select e subselect
+    for i, position in enumerate(select_positions):
 
-    # Criando uma chave para cada select e trocando esse select pela chave na string
-    key = f"!{i}!"
-    sub_query = query[position:].split(")")[0]
-    query = query.replace(f"({sub_query})", key)
+        # Criando uma chave para cada select e trocando esse select pela chave na string
+        key = f"!{i}!"
+        sub_query = query[position:].split(")")[0]
+        query = query.replace(f"({sub_query})", key)
 
-    # Procurando todas as operações (select, etc.), colocando elas em sub_positions e organizando elas conforme a string
-    sub_positions = []
+        # Procurando todas as operações (select, etc.), colocando elas em sub_positions e organizando elas conforme a string
+        sub_positions = []
 
-    for comando in comandos:
-        sub_position = sub_query.find(comando)
-        if sub_position == -1:
-            continue
-        sub_positions.append((comando, sub_position))
+        for comando in comandos:
+            sub_position = sub_query.find(comando)
+            if sub_position == -1:
+                continue
+            sub_positions.append((comando, sub_position))
 
-    sub_positions.sort(key=lambda tup: tup[1])
+        sub_positions.sort(key=lambda tup: tup[1])
 
-    # Dividindo o select/subselect em partes
-    result = {}
+        # Dividindo o select/subselect em partes
+        result = {}
 
-    result["query"] = sub_query
-    for i, current_data in enumerate(sub_positions):
-        if i != len(sub_positions) - 1:
-            # index_start = current_data[1] if sub_query[current_data[1]] != ' ' else (current_data[1] + 1)
-            next_data = sub_positions[i + 1]
-            result[current_data[0]] = sub_query[current_data[1]: next_data[1]]
-        else:
-            # index_start = current_data[1] if sub_query[current_data[1]] != ' ' else (current_data[1] + 1)
-            result[current_data[0]] = sub_query[current_data[1]:]
-
-    # Dicionário de dicionários. Result é tanto a query toda quanto ela "dividida"
-    sub_queries[key] = result
-
-# Printando cada select e subselect, junto com sua chave
-# for key in sub_queries:
-#     print(key)
-#     i = sub_queries[key]
-#     for key2 in sub_queries[key]:
-#         print(f"{key2}: {i[key2]}")
-#
-# print()
-
-operators_dict = {}
-for key in sub_queries:
-    operators_dict[key] = {}
-    if " where " in sub_queries[key]:
-        a = sub_queries[key][" where "].replace("where ", "")
-        operators_dict[key][" where "] = split_operators(op_comparacao, op_logicos, a)
-
-    if " on " in sub_queries[key]:
-        a = sub_queries[key][" on "].replace(" on ", "")
-        operators_dict[key][" on "] = split_operators(op_comparacao, op_logicos, a)
-
-# print(sub_queries, end="\n\n")
-# print(operators_dict, end="\n\n")
-
-relations = {}
-
-# Procurando todas as tabelas distintas e as colunas de cada tabela e as colocando no dicionário sub_queries
-for query in sub_queries:
-    relations[query] = {}
-    relations[query]["tabelas"] = []
-    relations[query]["columns_info"] = {}
-    relations[query]["select_infos"] = {}
-    relations[query]["comparisons"] = []
-
-    if "select " in sub_queries[query]:
-        aux_array = sub_queries[query]["select "].replace("select ", '').replace(" ", '').split(",")
-
-        for tab in aux_array:
-            if tab != "*":
-                tabela_info, column = tab.split(".")
-                if tabela_info not in relations[query]["select_infos"]:
-                    relations[query]["select_infos"][tabela_info] = []
-                relations[query]["select_infos"][tabela_info].append(column)
+        result["query"] = sub_query
+        for i, current_data in enumerate(sub_positions):
+            if i != len(sub_positions) - 1:
+                # index_start = current_data[1] if sub_query[current_data[1]] != ' ' else (current_data[1] + 1)
+                next_data = sub_positions[i + 1]
+                result[current_data[0]] = sub_query[current_data[1]: next_data[1]]
             else:
-                relations[query]["select_infos"]["all"] = [tab]
+                # index_start = current_data[1] if sub_query[current_data[1]] != ' ' else (current_data[1] + 1)
+                result[current_data[0]] = sub_query[current_data[1]:]
 
-    if " from " in sub_queries[query]:
-        aux_array = sub_queries[query][" from "].replace(" from ", '').replace(" ", '').split(",")
+        # Dicionário de dicionários. Result é tanto a query toda quanto ela "dividida"
+        sub_queries[key] = result
 
-        for tab in aux_array:
-            if tab not in relations[query]["tabelas"]:
-                relations[query]["tabelas"].append(tab)
+    # Printando cada select e subselect, junto com sua chave
+    # for key in sub_queries:
+    #     print(key)
+    #     i = sub_queries[key]
+    #     for key2 in sub_queries[key]:
+    #         print(f"{key2}: {i[key2]}")
+    #
+    # print()
 
-    if " join " in sub_queries[query]:
-        aux_array = sub_queries[query][" join "].replace(" join ", '').replace(" ", '').split(",")
+    operators_dict = {}
+    for key in sub_queries:
+        operators_dict[key] = {}
+        if " where " in sub_queries[key]:
+            a = sub_queries[key][" where "].replace("where ", "")
+            operators_dict[key][" where "] = split_operators(op_comparacao, op_logicos, a)
 
-        for tab in aux_array:
-            if tab not in relations[query]["tabelas"]:
-                relations[query]["tabelas"].append(tab)
+        if " on " in sub_queries[key]:
+            a = sub_queries[key][" on "].replace(" on ", "")
+            operators_dict[key][" on "] = split_operators(op_comparacao, op_logicos, a)
 
-        a = operators_dict[query][" on "][1]
+    # print(sub_queries, end="\n\n")
+    # print(operators_dict, end="\n\n")
 
-        for operation in a:
-            if "." in operation[0]:
-                tabela_info_l, column_l = operation[0].split(".")
-            else:
-                column_l = None
-                tabela_info_l = operation[0]
+    relations = {}
 
-            if "." in operation[1]:
-                tabela_info_r, column_r = operation[1].split(".")
-            else:
-                column_r = None
-                tabela_info_r = operation[1]
+    # Procurando todas as tabelas distintas e as colunas de cada tabela e as colocando no dicionário sub_queries
+    for query in sub_queries:
+        relations[query] = {}
+        relations[query]["tabelas"] = []
+        relations[query]["columns_info"] = {}
+        relations[query]["select_infos"] = {}
+        relations[query]["comparisons"] = []
 
-            if column_r and tabela_info_r not in relations[query]["columns_info"]:
-                relations[query]["columns_info"][tabela_info_r] = []
+        if "select " in sub_queries[query]:
+            aux_array = sub_queries[query]["select "].replace("select ", '').replace(" ", '').split(",")
 
-            if column_r and tabela_info_l not in relations[query]["columns_info"]:
-                relations[query]["columns_info"][tabela_info_l] = []
+            for tab in aux_array:
+                if tab != "*":
+                    tabela_info, column = tab.split(".")
+                    if tabela_info not in relations[query]["select_infos"]:
+                        relations[query]["select_infos"][tabela_info] = []
+                    relations[query]["select_infos"][tabela_info].append(column)
+                else:
+                    relations[query]["select_infos"]["all"] = [tab]
 
-            relations[query]["comparisons"].append(
-                (tabela_info_l, column_l, operation[2], tabela_info_r, column_r, "join"))
-            relations[query]["columns_info"][tabela_info_r].append(column_r)
-            if column_r:
+        if " from " in sub_queries[query]:
+            aux_array = sub_queries[query][" from "].replace(" from ", '').replace(" ", '').split(",")
+
+            for tab in aux_array:
+                if tab not in relations[query]["tabelas"]:
+                    relations[query]["tabelas"].append(tab)
+
+        if " join " in sub_queries[query]:
+            aux_array = sub_queries[query][" join "].replace(" join ", '').replace(" ", '').split(",")
+
+            for tab in aux_array:
+                if tab not in relations[query]["tabelas"]:
+                    relations[query]["tabelas"].append(tab)
+
+            a = operators_dict[query][" on "][1]
+
+            for operation in a:
+                if "." in operation[0]:
+                    tabela_info_l, column_l = operation[0].split(".")
+                else:
+                    column_l = None
+                    tabela_info_l = operation[0]
+
+                if "." in operation[1]:
+                    tabela_info_r, column_r = operation[1].split(".")
+                else:
+                    column_r = None
+                    tabela_info_r = operation[1]
+
+                if column_r and tabela_info_r not in relations[query]["columns_info"]:
+                    relations[query]["columns_info"][tabela_info_r] = []
+
+                if column_r and tabela_info_l not in relations[query]["columns_info"]:
+                    relations[query]["columns_info"][tabela_info_l] = []
+
+                relations[query]["comparisons"].append(
+                    (tabela_info_l, column_l, operation[2], tabela_info_r, column_r, "join"))
+                relations[query]["columns_info"][tabela_info_r].append(column_r)
+                if column_r:
+                    relations[query]["columns_info"][tabela_info_l].append(column_l)
+
+            # sub_queries[query]["on"].replace(" on ", '').replace(" ", '').split(",")
+
+        if " where " in sub_queries[query]:
+            a = operators_dict[query][" where "][1]
+            for operation in a:
+                if "." in operation[0]:
+                    tabela_info_l, column_l = operation[0].split(".")
+                else:
+                    column_l = None
+                    tabela_info_l = operation[0]
+
+                if "." in operation[1]:
+                    tabela_info_r, column_r = operation[1].split(".")
+                else:
+                    column_r = None
+                    tabela_info_r = operation[1]
+
+                tabela_info_l = tabela_info_l.strip()
+                tabela_info_r = tabela_info_r.strip()
+
+                if column_r and tabela_info_r not in relations[query]["columns_info"]:
+                    relations[query]["columns_info"][tabela_info_r] = []
+
+                if column_l and tabela_info_l not in relations[query]["columns_info"]:
+                    relations[query]["columns_info"][tabela_info_l] = []
+
+                relations[query]["comparisons"].append(
+                    (tabela_info_l, column_l, operation[2], tabela_info_r, column_r, "where"))
                 relations[query]["columns_info"][tabela_info_l].append(column_l)
 
-        # sub_queries[query]["on"].replace(" on ", '').replace(" ", '').split(",")
+                if column_r:
+                    relations[query]["columns_info"][tabela_info_r].append(column_r)
 
-    if " where " in sub_queries[query]:
-        a = operators_dict[query][" where "][1]
-        for operation in a:
-            if "." in operation[0]:
-                tabela_info_l, column_l = operation[0].split(".")
-            else:
-                column_l = None
-                tabela_info_l = operation[0]
-
-            if "." in operation[1]:
-                tabela_info_r, column_r = operation[1].split(".")
-            else:
-                column_r = None
-                tabela_info_r = operation[1]
-
-            tabela_info_l = tabela_info_l.strip()
-            tabela_info_r = tabela_info_r.strip()
-
-            if column_r and tabela_info_r not in relations[query]["columns_info"]:
-                relations[query]["columns_info"][tabela_info_r] = []
-
-            if column_l and tabela_info_l not in relations[query]["columns_info"]:
-                relations[query]["columns_info"][tabela_info_l] = []
-
-            relations[query]["comparisons"].append(
-                (tabela_info_l, column_l, operation[2], tabela_info_r, column_r, "where"))
-            relations[query]["columns_info"][tabela_info_l].append(column_l)
-
-            if column_r:
-                relations[query]["columns_info"][tabela_info_r].append(column_r)
-
-# TODO ------------------------------------------------------
-
-# print(relations)
-
-# print(len(sub_queries))
-
-a = generate_tree(list(sub_queries.keys())[-1])
-create_tree_dictionary(a)
+    a = generate_tree(list(sub_queries.keys())[-1], sub_queries, relations)
+    return create_tree_dictionary(a)
 # print(relations)
 # print("!!!!!!!!!!!!")
 # print(sub_queries)
@@ -451,3 +443,9 @@ create_tree_dictionary(a)
 
 
 # Pegando tabelas e colunas a partir do where
+
+if __name__ == '__main__':
+    query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
+            "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
+            "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
+    verify_query(query)
