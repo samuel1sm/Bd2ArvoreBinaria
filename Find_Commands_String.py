@@ -4,7 +4,7 @@ from Node import Node
 
 # Setup --------------------------------------------------------
 
-query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = WORKS_ON.PNO " \
+query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius AND project.PNUMBER = WORKS_ON.PNO " \
         "AND EMPLOYEE.ESSN = WORKS_ON.SSN AND WORKS_ON.BDATE > 1957-12-31"
 # query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m and pessoa.idade > 30"
 # query = "select cliente.nome, cliente.idade, cartao.tipo_c from " \
@@ -144,7 +144,7 @@ def generate_tree(key):
         else:
             join_child_1 = str(last_node_checked.data).strip().replace(",", "")
 
-        if type(last_child_checked.data) == tuple:
+        if type(last_child_checked.data) == tuple or type(last_child_checked.data) == list:
             join_child_2 = last_child_checked.data[0]
         else:
             join_child_2 = str(last_child_checked.data).strip().replace(",", "")
