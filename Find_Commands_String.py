@@ -4,16 +4,15 @@ from Node import Node
 
 # Setup --------------------------------------------------------
 
-# query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = PNO " \
-#         "AND EMPLOYEE.ESSN = SSN AND WORKS_ON.BDATE > 1957-12-31"
+query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius OR project.PNUMBER = WORKS_ON.PNO " \
+        "AND EMPLOYEE.ESSN = WORKS_ON.SSN AND WORKS_ON.BDATE > 1957-12-31"
 # query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m and pessoa.idade > 30"
-
 # query = "select cliente.nome, cliente.idade, cartao.tipo_c from " \
 #         "batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)"
 
-query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
-        "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
-        "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
+# query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
+#         "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
+#         "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
 
 # query = "select * from cliente join cartao on cartao.usuario = cliente.usuario"
 
@@ -21,6 +20,7 @@ query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
 #         " where pessoa.sexo = m and pessoa.idade > 30 order by pessoa.idade"
 
 query = query.lower()
+a_q = query
 
 comandos = ["select ", " from ", " where ", " join ", " on ", " order by "]
 op_comparacao = ["=", ">", "<", "<=", ">=", "<>"]
@@ -64,7 +64,7 @@ def generate_tree(key):
     all_nodes = []
 
     # Pegando todas as tabelas do from e separando a primeira das outras
-    from_tables = sub_queries[key][" from "].replace(" from ", "").split(",")
+    from_tables = sub_queries[key][" from "].replace(" from ", "").replace(" ","").split(",")
 
     first = from_tables[0]
     from_tables.remove(first)
