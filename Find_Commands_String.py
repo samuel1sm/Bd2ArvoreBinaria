@@ -1,5 +1,9 @@
 import re
 import numpy as np
+import networkx as nx
+import random
+from networkx.drawing.nx_agraph import graphviz_layout
+import matplotlib.pyplot as plt
 from Node import Node
 
 # Setup --------------------------------------------------------
@@ -452,8 +456,78 @@ def verify_query(query):
 
 # Pegando tabelas e colunas a partir do where
 
+
+def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
+    if not nx.is_tree(G):
+        raise TypeError('cannot use hierarchy_pos on a graph that is not a tree')
+
+    if root is None:
+        if isinstance(G, nx.DiGraph):
+            root = next(iter(nx.topological_sort(G)))  # allows back compatibility with nx version 1.11
+        else:
+            root = random.choice(list(G.nodes))
+
+    def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, pos=None, parent=None):
+
+        if pos is None:
+            pos = {root: (xcenter, vert_loc)}
+        else:
+            pos[root] = (xcenter, vert_loc)
+        children = list(G.neighbors(root))
+        if not isinstance(G, nx.DiGraph) and parent is not None:
+            children.remove(parent)
+        if len(children) != 0:
+            dx = width / len(children)
+            nextx = xcenter - width / 2 - dx / 2
+            for child in children:
+                nextx += dx
+                pos = _hierarchy_pos(G, child, width=dx, vert_gap=vert_gap,
+                                     vert_loc=vert_loc - vert_gap, xcenter=nextx,
+                                     pos=pos, parent=root)
+        return pos
+
+    return _hierarchy_pos(G, root, width, vert_gap, vert_loc, xcenter)
+
+
+
 if __name__ == '__main__':
+    G = nx.DiGraph()
     query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
             "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
             "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
-    verify_query(query)
+    x = verify_query(query)
+    labels = {}
+    for level in x.values():
+        for node in level:
+            ident = node.split('#')[1].split("/")[0]
+            label = node.split('[')[0]
+            if len(label) > 30:
+                list_label = label.split(' ')
+                list_label.insert(int(len(label.split(' '))/2), '\n')
+                label = ' '.join(list_label)
+            labels[ident] = label
+            nodes = node.split('#')[1].split("]")[0].split('/')
+            x = []
+            for y in nodes:
+                if y != '':
+                    x.append(y)
+            nodes = x
+            if ident not in labels.keys():
+                G.add_node(ident)
+            if len(nodes) > 1:
+                if nodes[1] not in labels.keys():
+                    G.add_node(nodes[1])
+                G.add_edge(ident, nodes[1])
+            if len(nodes) > 2:
+                if nodes[2] not in labels.keys():
+                    G.add_node(nodes[2])
+                G.add_edge(ident, nodes[2])
+    G = nx.relabel_nodes(G, labels)
+
+    pos = hierarchy_pos(G, labels['1'])
+    nx.draw(G, pos, with_labels=True,node_size=1,font_size=20 )
+    plt.savefig('plot.png')
+    plt.show()
+
+    pass
+    print()
