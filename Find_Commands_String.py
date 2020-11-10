@@ -521,6 +521,7 @@ def create_graph(x):
     G = nx.relabel_nodes(G, labels)
 
     pos = hierarchy_pos(G, labels['1'])
+    plt.figure(figsize=(20, 20))
     nx.draw(G, pos, with_labels=True, node_size=8500, font_size=20, node_color='w')
     plt.savefig('plot.png')
     plt.close()
