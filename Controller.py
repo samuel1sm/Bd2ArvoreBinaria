@@ -13,7 +13,7 @@ def get_verify_query(query):
         os.remove("plot.png")
     # query = request.get_json()["quary"]
     result = verify_query(query)
-    result = random.sample('abcdefghijklmnopqrstuvxwyz', random.randint(5,20))
-    time.sleep(1)
+    #result = random.sample('abcdefghijklmnopqrstuvxwyz', random.randint(5,20))
+    #time.sleep(1)
     return jsonify({"caminho" : f"{os.path.dirname(os.path.abspath(__file__))}/{glob.glob('*.png')[0]}", "execucao" : result}), 200
     # return "200"

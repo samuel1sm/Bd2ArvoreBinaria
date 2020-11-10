@@ -20,8 +20,6 @@ from Node import Node
 # query = "select pessoa.nome, pessoa.idade from pessoa join funcionario on pessoa.nome = funcionario.nome" \
 #         " where pessoa.sexo = m and pessoa.idade > 30 order by pessoa.idade"
 
-
-
 comandos = ["select ", " from ", " where ", " join ", " on ", " order by "]
 op_comparacao = ["=", ">", "<", "<=", ">=", "<>"]
 op_logicos = [" and ", " or ", " in ", " not in ", " like "]
@@ -254,7 +252,7 @@ def build_operation_string(oper: list):
     return operation_string
 
 
-# Codigo -------------------------------------------------------
+# Principal ----------------------------------------------------
 
 def verify_query(query):
     query = query.lower()
@@ -419,43 +417,30 @@ def verify_query(query):
                 if column_r:
                     relations[query]["columns_info"][tabela_info_r].append(column_r)
 
-    a = generate_tree(list(sub_queries.keys())[-1], sub_queries, relations)
-    a = create_tree_dictionary(a)
-    create_graph(a)
-    return a
-# print(relations)
-# print("!!!!!!!!!!!!")
-# print(sub_queries)
-#
-# a = list(sub_queries.keys())
-# a.sort(reverse=True)
-#
-# print(a)
-#
-# infos = relations[a[0]]
-# tabelas = infos["tabelas"]
-# columns_info = infos["columns_info"]
-# select_infos = infos["select_infos"]
-#
-# print(tabelas)
-# print(columns_info)
-# print(select_infos)
-#
-# print()
+    root = generate_tree(list(sub_queries.keys())[-1], sub_queries, relations)
 
-# for i, col in enumerate(tabelas):
-#     if i == 0:
-#         tree.left_node = generate_tree(col, relations) if "!" in col else Node(col)
-#     else:
-#         tree.right_node = generate_tree(col, relations) if "!" in col else Node(col)
-#
-# print(infos)
+    operation_order_array = []
+    order_of_operations(root, operation_order_array)
 
-# for t in tabelas:
-#     Node()
+    print(operation_order_array)
+
+    tree_dict = create_tree_dictionary(root)
+    create_graph(tree_dict)
+
+    return operation_order_array
+    #return b
 
 
-# Pegando tabelas e colunas a partir do where
+def order_of_operations(n: Node, a: []):
+    if n.left_node:
+        order_of_operations(n.left_node, a)
+    if n.right_node:
+        order_of_operations(n.right_node, a)
+
+    if type(n.data) != str:
+        a.append(build_operation_string(n.data))
+    else:
+        a.append(n.data)
 
 
 def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
