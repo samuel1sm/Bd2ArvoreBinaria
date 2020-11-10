@@ -11,10 +11,9 @@ from Node import Node
 # query = "SELECT EMPLOYEE.LNAME FROM EMPLOYEE, WORKS_ON, PROJECT WHERE project.PNAME = Aquarius AND project.PNUMBER = WORKS_ON.PNO " \
 #         "AND EMPLOYEE.ESSN = WORKS_ON.SSN AND WORKS_ON.BDATE > 1957-12-31"
 # query = "select pessoa.nome,pessoa.idade from pessoa where pessoa.sexo = m and pessoa.idade > 30"
-# query = "select cliente.nome, cliente.idade, cartao.tipo_c from " \
-#         "batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)"
-
-
+# query = "select cliente.nome, cliente.idade, cartao.tipo_c from batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)"
+# select cliente.nome,cliente.idade,cartao.tipo_c from (select * from cliente join cartao on cartao.usuario = cliente.usuario), (select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)
+# select cliente.nome, cliente.idade, cartao.tipo_c from batata, (select * from cliente join cartao on cartao.usuario = cliente.usuario)
 
 # query = "select * from cliente join cartao on cartao.usuario = cliente.usuario"
 
@@ -421,7 +420,9 @@ def verify_query(query):
                     relations[query]["columns_info"][tabela_info_r].append(column_r)
 
     a = generate_tree(list(sub_queries.keys())[-1], sub_queries, relations)
-    return create_tree_dictionary(a)
+    a = create_tree_dictionary(a)
+    create_graph(a)
+    return a
 # print(relations)
 # print("!!!!!!!!!!!!")
 # print(sub_queries)
@@ -489,12 +490,44 @@ def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5)
     return _hierarchy_pos(G, root, width, vert_gap, vert_loc, xcenter)
 
 
+def create_graph(x):
+    G = nx.DiGraph()
+    labels = {}
+    for level in x.values():
+        for node in level:
+            ident = node.split('#')[1].split("/")[0]
+            label = node.split('[')[0]
+            if len(label) > 30:
+                list_label = label.split(' ')
+                list_label.insert(int(len(label.split(' ')) / 2), '\n')
+                label = ' '.join(list_label)
+            labels[ident] = label
+            nodes = node.split('#')[1].split("]")[0].split('/')
+            x = []
+            for y in nodes:
+                if y != '':
+                    x.append(y)
+            nodes = x
+            if ident not in labels.keys():
+                G.add_node(ident)
+            if len(nodes) > 1:
+                if nodes[1] not in labels.keys():
+                    G.add_node(nodes[1])
+                G.add_edge(ident, nodes[1])
+            if len(nodes) > 2:
+                if nodes[2] not in labels.keys():
+                    G.add_node(nodes[2])
+                G.add_edge(ident, nodes[2])
+    G = nx.relabel_nodes(G, labels)
+
+    pos = hierarchy_pos(G, labels['1'])
+    nx.draw(G, pos, with_labels=True, node_size=8500, font_size=20, node_color='w')
+    plt.savefig('plot.png')
+    plt.close()
 
 if __name__ == '__main__':
     G = nx.DiGraph()
-    query = "select cliente.nome,cliente.idade,cartao.tipo_c from " \
-            "(select * from cliente join cartao on cartao.usuario = cliente.usuario)," \
-            "(select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
+    query = "select cliente.nome,cliente.idade,cartao.tipo_c from (select * from cliente join cartao on cartao.usuario = cliente.usuario), (select batata.azedagem,cliente.nome,cliente.usuario from batata join cliente on batata.usuario = cliente.usuario)"
     x = verify_query(query)
     labels = {}
     for level in x.values():

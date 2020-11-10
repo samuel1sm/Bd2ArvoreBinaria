@@ -76,11 +76,22 @@ tr:nth-child(even) {
       if (httpRequest.status === 200) {
           var teste = JSON.parse(httpRequest.responseText);
 
+          var raiz = document.getElementById("img-container");
+          while( raiz.firstChild ){
+            raiz.removeChild( raiz.firstChild );
+          }
+
+
           var img = new Image();
           img.src = teste.caminho;
           img.setAttribute("class", "banner-img");
           img.setAttribute("alt", "effy");
           document.getElementById("img-container").appendChild(img);
+
+          raiz = document.getElementById("myList");
+          while( raiz.firstChild ){
+            raiz.removeChild( raiz.firstChild );
+          }
 
           teste.execucao.forEach( function(obj) {
             var node = document.createElement("LI");

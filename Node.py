@@ -14,3 +14,8 @@ class Node:
         self.left_node = child1
         self.right_node = child2
 
+if __name__ == '__main__':
+    import os
+    if os.path.exists("plot.png"):
+
+        os.remove("plot.png")
