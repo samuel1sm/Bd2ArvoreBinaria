@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<body>
+
+</body>
+<head>
+<style>
+table {
+  font-family: arial, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #dddddd;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:nth-child(even) {
+  background-color: #dddddd;
+}
+</style>
+</head>
+
+
+<h2 id="keyy">Key</h2>
+
+
+<div class="banner-section" id="img-container">
+</div>
+<ul id="myList">
+</ul>
+
+
+
+<label>Your name:
+  <input type="text" id="ajaxTextbox" />
+</label>
+<button id="ajaxButton" onclick="chave()" style="cursor: pointer; text-decoration: underline">
+  Make a request
+</button>
+
+<script type="text/javascript">
+  function chave(){
+    var httpRequest;
+    var nome = document.getElementById("ajaxTextbox").value;
+    document.getElementById("keyy").innerText = nome
+    makeRequestP("http://localhost:5000/post_key/".concat(nome)); };
+
+  function makeRequestP(url) {
+    if (window.XMLHttpRequest) { // Mozilla, Safari, ...
+      httpRequest = new XMLHttpRequest();
+    } else if (window.ActiveXObject) { // IE
+      try {
+        httpRequest = new ActiveXObject("Msxml2.XMLHTTP");
+      }
+      catch (e) {
+        try {
+          httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        catch (e) {}
+      }
+    }
+
+    if (!httpRequest) {
+      alert('Giving up :( Cannot create an XMLHTTP instance');
+      return false;
+    }
+    httpRequest.onreadystatechange = alertContentsP
+    httpRequest.open('POST', url);
+    httpRequest.send();
+  }
+
+  function alertContentsP() {
+    if (httpRequest.readyState === 4) {
+      if (httpRequest.status === 200) {
+          var teste = JSON.parse(httpRequest.responseText);
+
+          var img = new Image();
+          img.src = teste.caminho;
+          img.setAttribute("class", "banner-img");
+          img.setAttribute("alt", "effy");
+          document.getElementById("img-container").appendChild(img);
+
+          teste.execucao.forEach( function(obj) {
+            var node = document.createElement("LI");
+            var textnode = document.createTextNode(obj);
+            node.appendChild(textnode);
+            document.getElementById("myList").appendChild(node);
+          });
+
+      } else {
+        alert('There was a problem with the request.');
+      }
+    } else {
+    }
+  }
+
+
+
+
+
+
+
+
+</script>
